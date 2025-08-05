@@ -80,30 +80,38 @@ b64_img = base64.b64encode(photo_bytes).decode()
 scale = 800.0 / wall_width
 
 # Sync drag positions via streamlit-js-eval
+has_eval = False
 try:
     from streamlit_js_eval import streamlit_js_eval
+    has_eval = True
+except ImportError:
+    st.warning("Include streamlit-js-eval>=0.1.2 in requirements.txt for drag persistence.")
+
+if has_eval:
     js = (
         "(function(){"
         "let arr=[];"
         "document.querySelectorAll('.panel').forEach(el=>{"
-        " let m=el.style.transform.match(/rotate\\\\(([-0-9.]+)deg\\\\)/);"
+        " let m=el.style.transform.match(/rotate\(([-0-9.]+)deg\)/);"
         " arr.push({id:el.id, x:parseInt(el.style.left), y:parseInt(el.style.top), rotation:m?parseFloat(m[1]):0});"
         "});"
         "return JSON.stringify(arr);"
         "})()"
     )
-    res = streamlit_js_eval(js_expressions=[js], key="sync")
-    raw = res[0] if isinstance(res, list) else res
-    if isinstance(raw, str):
-        positions = json.loads(raw)
-    else:
-        positions = raw
-    for pos in positions:
-        for p in st.session_state.panels:
-            if p["id"] == pos.get("id"):
-                p.update({"x": pos.get("x", p["x"]), "y": pos.get("y", p["y"]), "rotation": pos.get("rotation", p.get("rotation", 0))})
-except Exception:
-    st.warning("Include streamlit-js-eval>=0.1.2 in requirements.txt for drag persistence.")
+    try:
+        res = streamlit_js_eval(js_expressions=[js], key="sync")
+        raw = res[0] if isinstance(res, list) else res
+        positions = json.loads(raw) if isinstance(raw, str) else raw
+        for pos in positions:
+            for p in st.session_state.panels:
+                if p["id"] == pos.get("id"):
+                    p.update({
+                        "x": pos.get("x", p["x"]),
+                        "y": pos.get("y", p["y"]),
+                        "rotation": pos.get("rotation", p.get("rotation", 0))
+                    })
+    except Exception as e:
+        st.error(f"Failed to sync panel positions: {e}")
 
 # Add panel form
 with st.form("add_form"):
