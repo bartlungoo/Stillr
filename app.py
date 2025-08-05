@@ -110,7 +110,8 @@ for p in st.session_state.panels:
     )
     scripts.append(f"initDrag('{p['id']}');")
 
-# Interactieve canvas + export-knop\html(
+# Interactieve canvas + export-knop
+html(
     f"""
 <style>
   #wall {{ position:relative; width:800px; border:1px solid #ccc; margin-bottom:1rem; }}
