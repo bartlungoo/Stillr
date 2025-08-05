@@ -1,262 +1,190 @@
 import streamlit as st
-# Zorg dat set_page_config als allereerste Streamlit-oproep staat
+# set_page_config must be first Streamlit call
 st.set_page_config(layout="wide")
 
-from PIL import Image, ImageDraw, ImageFilter
-import os
-import base64
-import json
-import uuid
-from streamlit.components.v1 import html
+from PIL import Image, ImageDraw
+import os, base64, json, uuid
 from io import BytesIO
+from streamlit.components.v1 import html
 
-# Toon logo
+# Display logo if available
 try:
     logo = Image.open("logo.png")
     st.image(logo, width=250)
-except:
+except FileNotFoundError:
     pass
+
+# Hide default padding
 st.markdown("<style>.block-container {padding-top: 1rem;}</style>", unsafe_allow_html=True)
 
-# Paneelformaten (breedte x hoogte in cm)
-formaten = {
+# Panel sizes (width x height in cm)
+sizes = {
     "M": (47.5, 95),
     "L": (95, 95),
     "XL": (190, 95),
     "MOON": (95, 95)
 }
 
-# Laad alle textures uit root en /Textures map
+# Load textures from root and Textures/ directory
 textures = {}
-stoffen = []
-root_dir = os.path.dirname(__file__)
-# Zoek in hoofdmap
-for f in os.listdir(root_dir):
-    if f.lower().endswith((".jpg", ".jpeg", ".png")):
-        name = os.path.splitext(f)[0]
-        with open(os.path.join(root_dir, f), "rb") as imgf:
-            textures[name] = base64.b64encode(imgf.read()).decode()
-        stoffen.append(name)
-# Zoek in submap Textures
-tx_dir = os.path.join(root_dir, "Textures")
-if os.path.isdir(tx_dir):
-    for f in os.listdir(tx_dir):
-        if f.lower().endswith((".jpg", ".jpeg", ".png")):
-            name = os.path.splitext(f)[0]
-            if name not in textures:
-                with open(os.path.join(tx_dir, f), "rb") as imgf:
-                    textures[name] = base64.b64encode(imgf.read()).decode()
-                stoffen.append(name)
+materials = []
+root = os.path.dirname(__file__)
+# root folder
+for fname in os.listdir(root):
+    if fname.lower().endswith((".jpg",".jpeg",".png")):
+        key = os.path.splitext(fname)[0]
+        with open(os.path.join(root,fname),"rb") as f:
+            textures[key] = base64.b64encode(f.read()).decode()
+        materials.append(key)
+# Textures folder
+tex_dir = os.path.join(root, "Textures")
+if os.path.isdir(tex_dir):
+    for fname in os.listdir(tex_dir):
+        if fname.lower().endswith((".jpg",".jpeg",".png")):
+            key = os.path.splitext(fname)[0]
+            if key not in textures:
+                with open(os.path.join(tex_dir,fname),"rb") as f:
+                    textures[key] = base64.b64encode(f.read()).decode()
+                materials.append(key)
 
-# Initialiseer sessiestate
+# Initialize session
 if "panels" not in st.session_state:
     st.session_state.panels = []
 
-# Functie om compositie lokaal te genereren (optie)
-def generate_composite(base_bytes, muurbreedte_cm):
-    base_img = Image.open(BytesIO(base_bytes)).convert("RGBA")
-    img_w, img_h = base_img.size
-    scale_ui_to_img = img_w / 800.0
-    px_per_cm = img_w / float(muurbreedte_cm)
-    for p in st.session_state.panels:
-        b64 = textures.get(p['stof'], '')
-        if not b64:
-            continue
-        pane_bytes = base64.b64decode(b64)
-        pane = Image.open(BytesIO(pane_bytes)).convert("RGBA")
-        w_px = int(formaten[p['formaat']][0] * px_per_cm)
-        h_px = int(formaten[p['formaat']][1] * px_per_cm)
-        pane = pane.resize((w_px, h_px), Image.LANCZOS)
-        if p['formaat'] == 'MOON':
-            mask = Image.new('L', (w_px, h_px), 0)
-            d = ImageDraw.Draw(mask)
-            d.ellipse((0,0,w_px,h_px), fill=255)
-            pane.putalpha(mask)
-        rot = -p.get('rotation', 0)
-        pane = pane.rotate(rot, expand=True)
-        pw, ph = pane.size
-        x_ui, y_ui = p['x'], p['y']
-        cx = (x_ui + (formaten[p['formaat']][0] * (800.0/muurbreedte_cm)) / 2.0) * scale_ui_to_img
-        cy = (y_ui + (formaten[p['formaat']][1] * (800.0/muurbreedte_cm)) / 2.0) * scale_ui_to_img
-        nx = int(cx - pw/2)
-        ny = int(cy - ph/2)
-        base_img.paste(pane, (nx, ny), pane)
-    return base_img.convert("RGB")
+# Sidebar
+st.sidebar.header("Options")
+wall_width = st.sidebar.number_input("Wall width (cm)", value=400.0)
+session_file = st.sidebar.file_uploader("Load session", type=["json"])
+if session_file:
+    data = json.load(session_file)
+    st.session_state.panels = data.get("panels", [])
+    wall_width = data.get("wall_width", wall_width)
 
-# Sidebar opties
-st.sidebar.header("Opties")
-muurbreedte = st.sidebar.number_input("Breedte muur (cm)", value=400.0)
-sessie_upload = st.sidebar.file_uploader("📂 Laad sessie (.json)", type=["json"])
-if sessie_upload:
-    try:
-        sessiedata = json.load(sessie_upload)
-        st.session_state.panels = sessiedata.get('panels', [])
-        muurbreedte = sessiedata.get('muurbreedte', muurbreedte)
-    except:
-        st.error("Kon sessie niet laden. Controleer JSON.")
+# Photo input
+method = st.radio("Photo source", ["Upload","Camera"])
+photo_bytes = None
+if method == "Upload":
+    up = st.file_uploader("Upload photo", type=["jpg","jpeg","png"])
+    if up: photo_bytes = up.read()
+elif method == "Camera":
+    cap = st.camera_input("Take photo")
+    if cap: photo_bytes = cap.getvalue()
 
-# Foto-invoer
-methode = st.radio("Foto invoer", ["Upload foto","Gebruik camera"], horizontal=True)
-foto_bytes = None
-if methode == "Upload foto":
-    up = st.file_uploader("Upload muurfoto", type=["jpg","jpeg","png"])
-    if up:
-        foto_bytes = up.read()
-elif methode == "Gebruik camera":
-    cam = st.camera_input("Neem een foto van de ruimte")
-    if cam:
-        foto_bytes = cam.getvalue()
-
-if not foto_bytes:
-    st.info("Upload of neem een foto om te starten.")
+if not photo_bytes:
+    st.info("Upload or take a photo to start.")
 else:
-    foto_b64 = base64.b64encode(foto_bytes).decode()
-    schaal_ui = 800.0 / muurbreedte
+    # Prepare preview
+    b64 = base64.b64encode(photo_bytes).decode()
+    scale_ui = 800 / wall_width
 
-    # Optionele muurdetectie
-    if st.checkbox("🔍 Detecteer muur automatisch"):
-        bbox, prev = detect_wall(foto_bytes)
-        if prev:
-            st.image(prev, caption="Gedetecteerde muur", use_column_width=True)
-        else:
-            st.warning("Geen duidelijke muur gevonden.")
-
-    # Paneel toevoegen
-    with st.form("paneel_form"):
+    # Add panel form
+    with st.form("add_panel"):
         c1, c2 = st.columns(2)
-        fmt = c1.selectbox("📐 Formaat", list(formaten.keys()))
-        stof = c2.selectbox("🎨 Stof", stoffen)
-        if st.form_submit_button("➕ Voeg paneel toe"):
+        psize = c1.selectbox("Size", list(sizes.keys()))
+        mat = c2.selectbox("Material", materials)
+        if st.form_submit_button("Add panel"):
             st.session_state.panels.append({
-                'id': str(uuid.uuid4())[:4], 'x': 100, 'y': 100,
-                'rotation': 0, 'formaat': fmt, 'stof': stof
+                "id": uuid.uuid4().hex[:6],
+                "x": 100, "y": 100,
+                "rotation": 0,
+                "size": psize,
+                "mat": mat
             })
 
-    # Bouw panelen HTML & JS
-    panel_html = ''
-    scripts = ''
+    # Build HTML & JS for panels
+    panel_divs = []
+    script_calls = []
     for p in st.session_state.panels:
-        w_cm, h_cm = formaten[p['formaat']]
-        w = schaal_ui * w_cm
-        h = schaal_ui * h_cm
-        rad = '50%' if p['formaat']=='MOON' else '0%'
-        src = textures.get(p['stof'], '')
-        # Schaduw
-        off = max(1, int(schaal_ui*2))
-        blur = int(off*2)
+        w_cm, h_cm = sizes[p["size"]]
+        w = scale_ui * w_cm
+        h = scale_ui * h_cm
+        radius = "50%" if p["size"] == "MOON" else "0%"
+        img_data = textures.get(p["mat"], "")
+        # subtle shadow
+        off = max(1, int(scale_ui * 2)); blur = off * 2
         shadow = f"{off}px {off}px {blur}px rgba(0,0,0,0.25)"
-        panel_html += f'''<div class="paneel" id="{p['id']}" data-img="data:image/jpeg;base64,{src}" style="top:{p['y']}px; left:{p['x']}px; width:{w}px; height:{h}px; transform:rotate({p['rotation']}deg); border-radius:{rad}; box-shadow:{shadow}; background-image:url('data:image/jpeg;base64,{src}'); background-repeat:repeat; background-size:auto;"></div>'''
-        scripts += f"initDrag('{p['id']}');"
+        div = f"""
+<div class='panel' id='{p['id']}' data-img='data:image/jpeg;base64,{img_data}'
+     style='top:{p['y']}px; left:{p['x']}px;
+            width:{w}px; height:{h}px;
+            transform:rotate({p['rotation']}deg);
+            border-radius:{radius};
+            box-shadow:{shadow};
+            background-image:url(data:image/jpeg;base64,{img_data});
+            background-repeat:repeat;
+            background-size:auto;'>
+</div>
+"""
+        panel_divs.append(div)
+        script_calls.append(f"initDrag('{p['id']}');")
 
-    # Render HTML + JS
+    # Render UI
     html(f"""
-    <style>
-      #muur {{ position: relative; width: 800px; border: 1px solid #ccc; margin-bottom: 1rem; }}
-      .paneel {{ position: absolute; cursor: move; z-index: 10; }}
-    </style>
-    <button id="exportBtn" style="margin-bottom:10px;">🎬 Genereer compositie</button>
-    <div id="muur">
-      <img src="data:image/jpeg;base64,{foto_b64}" style="width: 800px;" />
-      {panel_html}
-    </div>
-    <script>
-      function initDrag(id) {{
-        const el = document.getElementById(id);
-        let ox, oy, drag=false;
-        el.addEventListener('mousedown', e=>{{ drag=true; ox=e.clientX-el.offsetLeft; oy=e.clientY-el.offsetTop; }});
-        window.addEventListener('mousemove', e=>{{ if(drag){{ el.style.left=(e.clientX-ox)+'px'; el.style.top=(e.clientY-oy)+'px'; }} }});
-        window.addEventListener('mouseup', ()=>{{ drag=false; }});
-      }}
-      {scripts}
-      document.getElementById('exportBtn').onclick = function() {{
-        const wall = document.querySelector('#muur img');
-        const w0 = wall.naturalWidth || wall.width;
-        const h0 = wall.naturalHeight || wall.height;
-        const sc = w0/800;
-        const canvas = document.createElement('canvas');
-        canvas.width = w0; canvas.height = h0;
-        const ctx = canvas.getContext('2d');
-        const base = new Image(); base.src=wall.src;
-        base.onload = ()=>{{
-          ctx.drawImage(base,0,0,w0,h0);
-          let cnt=0;
-          document.querySelectorAll('.paneel').forEach(panel=>{{
-            const img2 = new Image(); img2.src=panel.dataset.img;
-            img2.onload = ()=>{{
-              const pw = panel.offsetWidth*sc;
-              const ph = panel.offsetHeight*sc;
-              const px = parseFloat(panel.style.left)*sc;
-              const py = parseFloat(panel.style.top)*sc;
-              let r=0;
-              const m=/rotate\(([-0-9.]+)deg\)/.exec(panel.style.transform);
-              if(m) r=parseFloat(m[1])*Math.PI/180;
-              ctx.save();
-              ctx.translate(px+pw/2,py+ph/2);
-              ctx.rotate(r);
-              // Voorvlak
-              const pattern = ctx.createPattern(img2,'repeat');
-              ctx.fillStyle = pattern;
-              if(panel.style.borderRadius==='50%'){{
-                const rad = Math.max(pw,ph)/2;
-                ctx.beginPath(); ctx.arc(0,0,rad,0,2*Math.PI); ctx.fill();
-                // Radiaal highlight
-                const radial = ctx.createRadialGradient(0,0,rad*0.3,0,0,rad);
-                radial.addColorStop(0,'rgba(255,255,255,0.15)');
-                radial.addColorStop(1,'rgba(0,0,0,0)');
-                ctx.fillStyle=radial;
-                ctx.beginPath(); ctx.arc(0,0,rad,0,2*Math.PI); ctx.fill();
-              }} else {{
-                ctx.fillRect(-pw/2,-ph/2,pw,ph);
-                // Extrusie rechthoekige zijkanten
-                const thickness = 5*sc;
-                // rechterzijde
-                ctx.beginPath();
-                ctx.moveTo(pw/2,-ph/2);
-                ctx.lineTo(pw/2,ph/2);
-                ctx.lineTo(pw/2+thickness,ph/2);
-                ctx.lineTo(pw/2+thickness,-ph/2);
-                ctx.closePath();
-                const gradR = ctx.createLinearGradient(pw/2,-ph/2,pw/2+thickness,-ph/2);
-                gradR.addColorStop(0,'rgba(0,0,0,0.25)');
-                gradR.addColorStop(1,'rgba(0,0,0,0)');
-                ctx.fillStyle=gradR; ctx.fill();
-                // onderzijde
-                ctx.beginPath();
-                ctx.moveTo(pw/2,ph/2);
-                ctx.lineTo(-pw/2,ph/2);
-                ctx.lineTo(-pw/2,ph/2+thickness);
-                ctx.lineTo(pw/2,ph/2+thickness);
-                ctx.closePath();
-                const gradB = ctx.createLinearGradient(-pw/2,ph/2,-pw/2,ph/2+thickness);
-                gradB.addColorStop(0,'rgba(0,0,0,0.25)');
-                gradB.addColorStop(1,'rgba(0,0,0,0)');
-                ctx.fillStyle=gradB; ctx.fill();
-                // highlight frontvlak
-                const hl = ctx.createLinearGradient(-pw/2,-ph/2,pw/2,ph/2);
-                hl.addColorStop(0,'rgba(255,255,255,0.15)');
-                hl.addColorStop(1,'rgba(0,0,0,0)');
-                ctx.fillStyle=hl;
-                ctx.fillRect(-pw/2,-ph/2,pw,ph);
-              }}
-              ctx.restore();
-              cnt++;
-              if(cnt===document.querySelectorAll('.paneel').length){
-                const url=canvas.toDataURL('image/png');
-                const a=document.createElement('a'); a.href=url; a.download='visualisatie.png'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-              }
-            }};
-          }});
-        }};
-      }}
-    </script>
-    """, height=820)
+<style>
+  #wall {{position:relative;width:800px;border:1px solid #ccc;}}
+  .panel {{position:absolute;cursor:move;}}
+</style>
+<button id='exportBtn'>Generate composition</button>
+<div id='wall'>
+  <img src='data:image/jpeg;base64,{b64}' style='width:800px;' />
+  {''.join(panel_divs)}
+</div>
+<script>
+function initDrag(id) {{
+  const el = document.getElementById(id);
+  let dx, dy, dragging=false;
+  el.onmousedown = e=>{{ dragging=true; dx=e.clientX-el.offsetLeft; dy=e.clientY-el.offsetTop; }};
+  window.onmousemove = e=>{{ if(dragging) {{ el.style.left=(e.clientX-dx)+'px'; el.style.top=(e.clientY-dy)+'px'; }} }};
+  window.onmouseup = ()=>{{ dragging=false; }};
+}}
+{''.join(script_calls)}
 
-    # Sessies opslaan en delen
-    st.download_button(
-        "💾 Download sessie",
-        json.dumps({"muurbreedte": muurbreedte, "panels": st.session_state.panels}),
-        file_name="sessie.json"
-    )
-    if st.button("🔗 Deel sessie"):
-        data = json.dumps({"muurbreedte":muurbreedte, "panels":st.session_state.panels})
-        st.text_area("Copy iemand deze code:", value=base64.b64encode(data.encode()).decode(), height=150)
+document.getElementById('exportBtn').onclick = () => {{
+  const wallImg = document.querySelector('#wall img');
+  const W = wallImg.naturalWidth || wallImg.width;
+  const H = wallImg.naturalHeight || wallImg.height;
+  const sc = W/800;
+  const c = document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx = c.getContext('2d');
+  const base = new Image(); base.src = wallImg.src;
+  base.onload = () => {{
+    ctx.drawImage(base, 0, 0, W, H);
+    let count = 0;
+    const panels = document.querySelectorAll('.panel');
+    panels.forEach(panel => {{
+      const img2 = new Image(); img2.src = panel.dataset.img;
+      img2.onload = () => {{
+        const pw = panel.offsetWidth*sc;
+        const ph = panel.offsetHeight*sc;
+        const px = parseFloat(panel.style.left)*sc;
+        const py = parseFloat(panel.style.top)*sc;
+        let a = 0;
+        const m = /rotate\(([-0-9.]+)deg\)/.exec(panel.style.transform);
+        if(m) a = parseFloat(m[1])*Math.PI/180;
+        ctx.save();
+        ctx.translate(px+pw/2, py+ph/2);
+        ctx.rotate(a);
+        // Fill with tiled pattern
+        const pat = ctx.createPattern(img2, 'repeat');
+        ctx.fillStyle = pat;
+        if(panel.style.borderRadius==='50%') {{
+          const r = Math.max(pw,ph)/2;
+          ctx.beginPath(); ctx.arc(0,0,r,0,2*Math.PI); ctx.fill();
+        }} else {{ ctx.fillRect(-pw/2,-ph/2,pw,ph); }}
+        ctx.restore();
+        count++;
+        if(count===panels.length) {{
+          const url = c.toDataURL('image/png');
+          const a = document.createElement('a'); a.href=url; a.download='composition.png';
+          a.click();
+        }}
+      }};
+    }});
+  }};
+}};
+</script>
+""", height=840)
+
+# Save or share session
+st.download_button("Save session", json.dumps({"wall_width":wall_width,"panels":st.session_state.panels}), file_name="session.json")
+st.button("Share session") and _copy_ base64...
