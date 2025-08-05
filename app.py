@@ -335,24 +335,68 @@ else:
                             ctx.translate(x + w / 2.0, y + h / 2.0);
                             ctx.rotate(rot);
                             // Schaduwinstellingen voor subtiele diepte in de export
-                            const depth = 5 * scale;
-                            ctx.shadowColor = 'rgba(0,0,0,0.25)';
-                            ctx.shadowBlur = depth * 0.6;
-                            ctx.shadowOffsetX = depth;
-                            ctx.shadowOffsetY = depth;
-                            // Maak een patroon zodat de textuur wordt herhaald
+                            // Dikte van het paneel (5 cm) omgerekend naar pixels
+                            const thickness = 5 * scale;
+                            // Gebruik de data‑image als patroon zodat de textuur wordt herhaald
                             const pattern = ctx.createPattern(img2, 'repeat');
+                            // Reset schaduwinstellingen; we tekenen zelf de zijkanten in plaats van een drop shadow
+                            ctx.shadowColor = 'transparent';
+                            // Translate naar het midden van het paneel en roteer zoals in de UI
+                            ctx.save();
+                            ctx.translate(x + w / 2.0, y + h / 2.0);
+                            ctx.rotate(rot);
+                            // Teken het voorvlak met het textuurpatroon
                             ctx.fillStyle = pattern;
-                            // Teken cirkel of rechthoek met het patroon
                             if (panel.style.borderRadius === '50%') {{
+                                // Voor een rond paneel gebruiken we een cirkelvormig pad
+                                const radius = Math.max(w, h) / 2.0;
                                 ctx.beginPath();
-                                ctx.arc(0, 0, Math.max(w, h) / 2.0, 0, 2 * Math.PI);
+                                ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+                                ctx.fill();
+                                // Voeg een subtiele highlight toe zodat het materiaal levendiger oogt
+                                const radial = ctx.createRadialGradient(0, 0, radius * 0.3, 0, 0, radius);
+                                radial.addColorStop(0, 'rgba(255,255,255,0.15)');
+                                radial.addColorStop(1, 'rgba(0,0,0,0)');
+                                ctx.fillStyle = radial;
+                                ctx.beginPath();
+                                ctx.arc(0, 0, radius, 0, 2 * Math.PI);
                                 ctx.fill();
                             }} else {{
+                                // Rechthoekig paneel
+                                ctx.fillRect(-w / 2.0, -h / 2.0, w, h);
+                                // Teken de zijkanten om diepte te simuleren
+                                // Rechter zijkant
+                                ctx.beginPath();
+                                ctx.moveTo(w / 2.0, -h / 2.0);
+                                ctx.lineTo(w / 2.0, h / 2.0);
+                                ctx.lineTo(w / 2.0 + thickness, h / 2.0);
+                                ctx.lineTo(w / 2.0 + thickness, -h / 2.0);
+                                ctx.closePath();
+                                const gradRight = ctx.createLinearGradient(w / 2.0, -h / 2.0, w / 2.0 + thickness, -h / 2.0);
+                                gradRight.addColorStop(0, 'rgba(0,0,0,0.25)');
+                                gradRight.addColorStop(1, 'rgba(0,0,0,0)');
+                                ctx.fillStyle = gradRight;
+                                ctx.fill();
+                                // Onderste zijkant
+                                ctx.beginPath();
+                                ctx.moveTo(w / 2.0, h / 2.0);
+                                ctx.lineTo(-w / 2.0, h / 2.0);
+                                ctx.lineTo(-w / 2.0, h / 2.0 + thickness);
+                                ctx.lineTo(w / 2.0, h / 2.0 + thickness);
+                                ctx.closePath();
+                                const gradBottom = ctx.createLinearGradient(-w / 2.0, h / 2.0, -w / 2.0, h / 2.0 + thickness);
+                                gradBottom.addColorStop(0, 'rgba(0,0,0,0.25)');
+                                gradBottom.addColorStop(1, 'rgba(0,0,0,0)');
+                                ctx.fillStyle = gradBottom;
+                                ctx.fill();
+                                // Voeg een highlight toe aan het voorvlak om een lichtbron te simuleren (van linksboven)
+                                const highlight = ctx.createLinearGradient(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0);
+                                highlight.addColorStop(0, 'rgba(255,255,255,0.15)');
+                                highlight.addColorStop(1, 'rgba(0,0,0,0)');
+                                ctx.fillStyle = highlight;
                                 ctx.fillRect(-w / 2.0, -h / 2.0, w, h);
                             }}
-                            // Reset schaduw zodat volgende elementen geen schaduw erven
-                            ctx.shadowColor = 'transparent';
+                            // Herstel de context
                             ctx.restore();
                             processed++;
                             if (processed === panels.length) {{
