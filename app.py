@@ -145,4 +145,29 @@ function initDrag(id) {
   const el = document.getElementById(id);
   let dx, dy, dragging=false;
   const start=(x,y)=>{dragging=true;dx=x-el.offsetLeft;dy=y-el.offsetTop;el.classList.add('active');};
-  const move=(x,y)=>{if(dragging){el.style.l
+  const move=(x,y)=>{if(dragging){el.style.left=(x-dx)+'px';el.style.top=(y-dy)+'px';}};
+  const end=()=>{dragging=false;el.classList.remove('active');};
+  el.onmousedown=e=>{e.preventDefault();start(e.clientX,e.clientY);};
+  window.onmousemove=e=>move(e.clientX,e.clientY);
+  window.onmouseup=end;
+  el.ontouchstart=e=>{let t=e.touches[0];start(t.clientX,t.clientY);};
+  window.ontouchmove=e=>{let t=e.touches[0];move(t.clientX,t.clientY);};
+  window.ontouchend=end;
+}
+"""
+
+export_js = r"""
+document.getElementById('exportBtn').onclick=()=>{
+  const img=document.querySelector('#wall img');const W=img.naturalWidth||img.width;const H=img.naturalHeight||img.height;
+  const sc=W/800;const c=document.createElement('canvas');c.width=W;c.height=H;const ctx=c.getContext('2d');
+  const base=new Image();base.src=img.src;base.onload=()=>{ctx.drawImage(base,0,0,W,H);let cnt=0;document.querySelectorAll('.panel').forEach(el=>{const nm=new Image();nm.src=el.style.backgroundImage.slice(5,-2);nm.onload=()=>{const pw=el.offsetWidth*sc,ph=el.offsetHeight*sc;const px=parseFloat(el.style.left)*sc,py=parseFloat(el.style.top)*sc;let a=0;const m=/rotate\(([-0-9.]+)deg\)/.exec(el.style.transform);if(m)a=parseFloat(m[1])*Math.PI/180;ctx.save();ctx.translate(px+pw/2,py+ph/2);ctx.rotate(a);const pat=ctx.createPattern(nm,'repeat');ctx.fillStyle=pat;if(el.style.borderRadius==='50%'){let r=Math.max(pw,ph)/2;ctx.beginPath();ctx.arc(0,0,r,0,2*Math.PI);ctx.fill();}else ctx.fillRect(-pw/2,-ph/2,pw,ph);ctx.restore();if(++cnt===document.querySelectorAll('.panel').length){const url=c.toDataURL();const a=document.createElement('a');a.href=url;a.download='composition.png';a.click();}}});};};
+"""
+
+html(f"""
+<button id='exportBtn'>Genereer compositie</button>
+<div id='wall'><img src='data:image/jpeg;base64,{b64_img}' style='width:800px'/>{''.join(divs)}</div>
+<script>{drag_js}{''.join(scripts)}{export_js}</script>
+""", height=900)
+
+st.write("Share session code:")
+st.text_area("Base64", base64.b64encode(json.dumps({"panels":st.session_state.panels}).encode()).decode(), height=100)
