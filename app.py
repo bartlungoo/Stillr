@@ -29,7 +29,8 @@ for folder in [root, os.path.join(root, "Textures")]:
         for fname in os.listdir(folder):
             if fname.lower().endswith((".jpg", ".jpeg", ".png")):
                 key = os.path.splitext(fname)[0]
-                with open(os.path.join(folder, fname), "rb") as f:
+                path = os.path.join(folder, fname)
+                with open(path, "rb") as f:
                     textures[key] = base64.b64encode(f.read()).decode()
                 materials.append(key)
 
@@ -88,7 +89,7 @@ if not photo_bytes:
     st.info("Upload or take a photo to start.")
     st.stop()
 
-# Prepare image and UI scale
+# Prepare base64 image and UI scale
 photo_b64 = base64.b64encode(photo_bytes).decode()
 scale_ui = 800.0 / wall_width
 
@@ -116,7 +117,11 @@ try:
     for pos in arr:
         for p in st.session_state.panels:
             if p["id"] == pos.get("id"):
-                p["x"], p["y"], p["rotation"] = pos.get("x", p["x"]), pos.get("y", p["y"]), pos.get("rotation", p.get("rotation",0))
+                p["x"], p["y"], p["rotation"] = (
+                    pos.get("x", p["x"]),
+                    pos.get("y", p["y"]),
+                    pos.get("rotation", p.get("rotation", 0))
+                )
 except ImportError:
     st.warning("Add 'streamlit-js-eval>=0.1.2' to requirements.txt for drag persistence.")
 
@@ -142,14 +147,14 @@ for p in st.session_state.panels:
     src = textures.get(p["mat"], "")
     off, blur = max(1, int(scale_ui * 2)), int(scale_ui * 2) * 2
     shadow = f"{off}px {off}px {blur}px rgba(0,0,0,0.25)"
-    div = (
+    div_html = (
         f"<div class='panel' id='{p['id']}' data-img='data:image/jpeg;base64,{src}' "
         f"style='top:{p['y']}px; left:{p['x']}px; width:{w}px; height:{h}px; "
         f"transform:rotate({p['rotation']}deg); border-radius:{rad}; "
         f"box-shadow:{shadow}; background-image:url(data:image/jpeg;base64,{src}); "
         f"background-repeat:repeat; background-size:auto;'></div>"
     )
-    divs.append(div)
+    divs.append(div_html)
     scripts.append(f"initDrag('{p['id']}');")
 
 # Render interactive canvas and export button
@@ -184,7 +189,7 @@ document.getElementById('exportBtn').onclick = () => {{
   base.onload = () => {{
     ctx.drawImage(base, 0, 0, W, H);
     let cnt = 0;
-    document.querySelectorAll('.	panel').forEach(panel => {{
+    document.querySelectorAll('.panel').forEach(panel => {{
       const img2 = new Image(); img2.src = panel.dataset.img;
       img2.onload = () => {{
         const pw = panel.offsetWidth * sc;
@@ -202,7 +207,7 @@ document.getElementById('exportBtn').onclick = () => {{
         }} else {{ ctx.fillRect(-pw/2, -ph/2, pw, ph); }}
         ctx.restore();
         cnt++;
-        if(cnt === document.querySelectorAll('.	panel').length) {{
+        if(cnt === document.querySelectorAll('.panel').length) {{
           const url = c.toDataURL('image/png');
           const a = document.createElement('a'); a.href = url; a.download = 'composition.png'; a.click();
         }}
@@ -217,7 +222,6 @@ document.getElementById('exportBtn').onclick = () => {{
 
 # Share session inline
 st.write("Share session code:")
-seton=text_area=
 st.text_area(
     "Base64:",
     base64.b64encode(json.dumps({"panels": st.session_state.panels}).encode()).decode(),
