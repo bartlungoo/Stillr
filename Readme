@@ -1,0 +1,16 @@
+# Stillr Visualizer
+
+**Versie:** 7.10 3D-Export
+
+## Snelle GitHub & deploy stappen
+
+1. **Voeg kandestenen-stoffen toe**
+   - Zorg dat de hele map `Textures/` (met al je JPG/PNG-stoffen) in de projectmap staat.
+   - Voeg deze bestanden toe aan Git:
+     ```bash
+     git add Textures/
+     ```
+2. **Push code (inclusief Textures) naar GitHub**
+   ```bash
+   git commit -m "Voeg textures-map toe"
+   git push
