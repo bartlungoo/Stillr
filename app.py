@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit.components.v1 import html
 from PIL import Image
 import os, base64, json, uuid
 from io import BytesIO
@@ -140,8 +141,7 @@ for p in st.session_state.panels:
     scripts.append(f"initDrag('{p['id']}');")
 
 # Define JS for drag & export
-
-drag_js = """
+drag_js = r"""
 function initDrag(id) {
   const el = document.getElementById(id);
   let dx, dy, dragging=false;
@@ -157,7 +157,7 @@ function initDrag(id) {
 }
 """
 
-export_js = """
+export_js = r"""
 document.getElementById('exportBtn').onclick=()=>{
   const img=document.querySelector('#wall img'); const W=img.naturalWidth||img.width; const H=img.naturalHeight||img.height;
   const sc=W/800; const cnv=document.createElement('canvas'); cnv.width=W; cnv.height=H;
