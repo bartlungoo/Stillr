@@ -105,6 +105,21 @@ if has_eval:
 
 # Sidebar controls: toevoegen, roteren, verwijderen
 st.sidebar.header("Configuratie")
+
+# Voeg paneel toe (direct, zonder form)
+sz = st.sidebar.selectbox("Grootte", list(sizes.keys()), key="add_sz")
+mat = st.sidebar.selectbox("Materiaal", materials, key="add_mat")
+if st.sidebar.button("Voeg paneel toe"):
+    # Sync-posities zijn al bijgewerkt bovenaan, dus append en herladen
+    st.session_state.panels.append({
+        "id": uuid.uuid4().hex[:6],
+        "x": 100, "y": 100,
+        "rotation": 0,
+        "size": sz, "mat": mat
+    })
+    st.experimental_rerun()
+
+st.sidebar.header("Configuratie")
 with st.sidebar.form("add_panel"):
     sz = st.selectbox("Grootte", list(sizes.keys()))
     mat = st.selectbox("Materiaal", materials)
