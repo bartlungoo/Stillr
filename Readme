@@ -4,13 +4,16 @@
 
 ## Snelle GitHub & deploy stappen
 
-1. **Voeg kandestenen-stoffen toe**
-   - Zorg dat de hele map `Textures/` (met al je JPG/PNG-stoffen) in de projectmap staat.
-   - Voeg deze bestanden toe aan Git:
-     ```bash
-     git add Textures/
-     ```
-2. **Push code (inclusief Textures) naar GitHub**
+1. **Zet je JPG/PNG-bestanden in de hoofdmap**
+   - Plaats al je stofafbeeldingen (`.jpg` of `.png`) rechtstreeks in de projectmap naast `app.py`.
+
+2. **Voeg de bestanden toe en push naar GitHub**
    ```bash
-   git commit -m "Voeg textures-map toe"
-   git push
+   cd stillr_app
+   # Voeg alle JPG/PNG-bestanden toe
+   git add *.jpg *.png
+   # Voeg de overige wijzigingen toe (app.py, README.md, requirements.txt)
+   git add app.py README.md requirements.txt
+
+   git commit -m "Voeg stofafbeeldingen toe en update readme"
+   git push origin main
