@@ -54,11 +54,14 @@ if "panels" not in st.session_state:
 # Sidebar
 st.sidebar.header("Options")
 wall_width = st.sidebar.number_input("Wall width (cm)", value=400.0)
-session_file = st.sidebar.file_uploader("Load session", type=["json"])
+session_file = st.sidebar.file_uploader("Load session (.json)", type=["json"])
 if session_file:
-    data = json.load(session_file)
-    st.session_state.panels = data.get("panels", [])
-    wall_width = data.get("wall_width", wall_width)
+    try:
+        data = json.load(session_file)
+        st.session_state.panels = data.get("panels", [])
+        wall_width = data.get("wall_width", wall_width)
+    except:
+        st.error("Failed to load session. Check JSON file.")
 
 # Photo input
 method = st.radio("Photo source", ["Upload","Camera"])
@@ -121,10 +124,10 @@ else:
     # Render UI
     html(f"""
 <style>
-  #wall {{position:relative;width:800px;border:1px solid #ccc;}}
-  .panel {{position:absolute;cursor:move;}}
+  #wall {{position:relative;width:800px;border:1px solid #ccc;margin-bottom:1rem;}}
+  .panel {{position:absolute;cursor:move;z-index:10;}}
 </style>
-<button id='exportBtn'>Generate composition</button>
+<button id='exportBtn' style='margin-bottom:10px;'>Generate composition</button>
 <div id='wall'>
   <img src='data:image/jpeg;base64,{b64}' style='width:800px;' />
   {''.join(panel_divs)}
@@ -164,27 +167,55 @@ document.getElementById('exportBtn').onclick = () => {{
         ctx.save();
         ctx.translate(px+pw/2, py+ph/2);
         ctx.rotate(a);
-        // Fill with tiled pattern
+        // Fill front with tiled pattern
         const pat = ctx.createPattern(img2, 'repeat');
         ctx.fillStyle = pat;
         if(panel.style.borderRadius==='50%') {{
           const r = Math.max(pw,ph)/2;
           ctx.beginPath(); ctx.arc(0,0,r,0,2*Math.PI); ctx.fill();
-        }} else {{ ctx.fillRect(-pw/2,-ph/2,pw,ph); }}
+          // radial highlight
+          const radial = ctx.createRadialGradient(0,0,r*0.3,0,0,r);
+          radial.addColorStop(0,'rgba(255,255,255,0.15)');
+          radial.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle = radial;
+          ctx.beginPath(); ctx.arc(0,0,r,0,2*Math.PI); ctx.fill();
+        }} else {{
+          ctx.fillRect(-pw/2,-ph/2,pw,ph);
+          const thickness = 5*sc;
+          // Right side
+          ctx.beginPath();
+          ctx.moveTo(pw/2,-ph/2);
+          ctx.lineTo(pw/2,ph/2);
+          ctx.lineTo(pw/2+thickness,ph/2);
+          ctx.lineTo(pw/2+thickness,-ph/2);
+          ctx.closePath();
+          const gradR = ctx.createLinearGradient(pw/2,-ph/2,pw/2+thickness,-ph/2);
+          gradR.addColorStop(0,'rgba(0,0,0,0.25)');
+          gradR.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle = gradR; ctx.fill();
+          // Bottom side
+          ctx.beginPath();
+          ctx.moveTo(pw/2,ph/2);
+          ctx.lineTo(-pw/2,ph/2);
+          ctx.lineTo(-pw/2,ph/2+thickness);
+          ctx.lineTo(pw/2,ph/2+thickness);
+          ctx.closePath();
+          const gradB = ctx.createLinearGradient(-pw/2,ph/2,-pw/2,ph/2+thickness);
+          gradB.addColorStop(0,'rgba(0,0,0,0.25)');
+          gradB.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle = gradB; ctx.fill();
+          // highlight front
+          const hl = ctx.createLinearGradient(-pw/2,-ph/2,pw/2,ph/2);
+          hl.addColorStop(0,'rgba(255,255,255,0.15)');
+          hl.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle = hl;
+          ctx.fillRect(-pw/2,-ph/2,pw,ph);
+        }}
         ctx.restore();
         count++;
-        if(count===panels.length) {{
-          const url = c.toDataURL('image/png');
-          const a = document.createElement('a'); a.href=url; a.download='composition.png';
-          a.click();
-        }}
+        if(count === panels.length) {{ const url = c.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='composition.png'; a.click(); }}
       }};
     }});
   }};
 }};
 </script>
-""", height=840)
-
-# Save or share session
-st.download_button("Save session", json.dumps({"wall_width":wall_width,"panels":st.session_state.panels}), file_name="session.json")
-st.button("Share session") and _copy_ base64...
