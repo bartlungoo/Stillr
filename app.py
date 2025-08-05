@@ -18,12 +18,7 @@ except FileNotFoundError:
 st.markdown("<style>.block-container {padding-top:1rem;}</style>", unsafe_allow_html=True)
 
 # Panel sizes (width x height in cm)
-sizes = {
-    "M": (47.5, 95),
-    "L": (95, 95),
-    "XL": (190, 95),
-    "MOON": (95, 95),
-}
+sizes = {"M": (47.5, 95), "L": (95, 95), "XL": (190, 95), "MOON": (95, 95)}
 
 # Load textures from root and Textures/ directory
 textures = {}
@@ -93,7 +88,7 @@ if not photo_bytes:
     st.info("Upload or take a photo to start.")
     st.stop()
 
-# Prepare base64 image and UI scale
+# Prepare image and UI scale
 photo_b64 = base64.b64encode(photo_bytes).decode()
 scale_ui = 800.0 / wall_width
 
@@ -104,24 +99,26 @@ try:
         "(function(){"
         "var arr=[];"
         "document.querySelectorAll('.panel').forEach(function(el){"
-        "var m=el.style.transform.match(/rotate\\(([-0-9.]+)deg\\)/);"
-        "arr.push({id:el.id, x:parseInt(el.style.left), y:parseInt(el.style.top),"
-        "rotation:m?parseFloat(m[1]):0});"
+        "  var m = el.style.transform.match(/rotate\\(([-0-9.]+)deg\\)/);"
+        "  arr.push({id:el.id, x:parseInt(el.style.left), y:parseInt(el.style.top), rotation: m?parseFloat(m[1]):0});"
         "});"
         "return JSON.stringify(arr);"
         "})()"
     )
-    positions_json = streamlit_js_eval(js_expressions=[js_code], key="sync_positions")
-    if positions_json:
-        arr = json.loads(positions_json)
-        for pos in arr:
-            for p in st.session_state.panels:
-                if p["id"] == pos["id"]:
-                    p["x"], p["y"], p["rotation"] = pos["x"], pos["y"], pos["rotation"]
+    result = streamlit_js_eval(js_expressions=[js_code], key="sync_positions")
+    raw = result[0] if isinstance(result, list) and result else result
+    if isinstance(raw, str):
+        arr = json.loads(raw)
+    elif isinstance(raw, (dict, list)):
+        arr = raw
+    else:
+        arr = []
+    for pos in arr:
+        for p in st.session_state.panels:
+            if p["id"] == pos.get("id"):
+                p["x"], p["y"], p["rotation"] = pos.get("x", p["x"]), pos.get("y", p["y"]), pos.get("rotation", p.get("rotation",0))
 except ImportError:
-    st.warning(
-        "Add 'streamlit-js-eval>=0.1.2' to requirements.txt for drag persistence."
-    )
+    st.warning("Add 'streamlit-js-eval>=0.1.2' to requirements.txt for drag persistence.")
 
 # Add panel form
 with st.form("add_panel_form"):
@@ -145,21 +142,22 @@ for p in st.session_state.panels:
     src = textures.get(p["mat"], "")
     off, blur = max(1, int(scale_ui * 2)), int(scale_ui * 2) * 2
     shadow = f"{off}px {off}px {blur}px rgba(0,0,0,0.25)"
-    divs.append(
+    div = (
         f"<div class='panel' id='{p['id']}' data-img='data:image/jpeg;base64,{src}' "
         f"style='top:{p['y']}px; left:{p['x']}px; width:{w}px; height:{h}px; "
         f"transform:rotate({p['rotation']}deg); border-radius:{rad}; "
         f"box-shadow:{shadow}; background-image:url(data:image/jpeg;base64,{src}); "
         f"background-repeat:repeat; background-size:auto;'></div>"
     )
+    divs.append(div)
     scripts.append(f"initDrag('{p['id']}');")
 
 # Render interactive canvas and export button
 html(
     f"""
 <style>
-  #wall {{ position:relative; width:800px; border:1px solid #ccc; margin-bottom:1rem; }}
-  .panel {{ position:absolute; cursor:move; z-index:10; }}
+  #wall {{ position: relative; width: 800px; border: 1px solid #ccc; margin-bottom: 1rem; }}
+  .panel {{ position: absolute; cursor: move; z-index: 10; }}
 </style>
 <button id='exportBtn' style='margin-bottom:10px;'>Generate composition</button>
 <div id='wall'>
@@ -186,7 +184,7 @@ document.getElementById('exportBtn').onclick = () => {{
   base.onload = () => {{
     ctx.drawImage(base, 0, 0, W, H);
     let cnt = 0;
-    document.querySelectorAll('.panel').forEach(panel => {{
+    document.querySelectorAll('.	panel').forEach(panel => {{
       const img2 = new Image(); img2.src = panel.dataset.img;
       img2.onload = () => {{
         const pw = panel.offsetWidth * sc;
@@ -204,7 +202,7 @@ document.getElementById('exportBtn').onclick = () => {{
         }} else {{ ctx.fillRect(-pw/2, -ph/2, pw, ph); }}
         ctx.restore();
         cnt++;
-        if(cnt === document.querySelectorAll('.panel').length) {{
+        if(cnt === document.querySelectorAll('.	panel').length) {{
           const url = c.toDataURL('image/png');
           const a = document.createElement('a'); a.href = url; a.download = 'composition.png'; a.click();
         }}
@@ -219,8 +217,10 @@ document.getElementById('exportBtn').onclick = () => {{
 
 # Share session inline
 st.write("Share session code:")
+seton=text_area=
 st.text_area(
     "Base64:",
     base64.b64encode(json.dumps({"panels": st.session_state.panels}).encode()).decode(),
     height=100
 )
+```
