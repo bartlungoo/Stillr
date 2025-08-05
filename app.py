@@ -86,7 +86,7 @@ try:
         "(function(){"
         "let arr=[];"
         "document.querySelectorAll('.panel').forEach(el=>{"
-        " let m=el.style.transform.match(/rotate\\(([-0-9.]+)deg\\)/);"
+        " let m=el.style.transform.match(/rotate\\\\(([-0-9.]+)deg\\\\)/);"
         " arr.push({id:el.id, x:parseInt(el.style.left), y:parseInt(el.style.top), rotation:m?parseFloat(m[1]):0});"
         "});"
         "return JSON.stringify(arr);"
